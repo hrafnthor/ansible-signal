@@ -1,0 +1,88 @@
+- name: "HTH | Signal | Run assertions"
+  ansible.utils.validate:
+    data: "{{ signal }}"
+    criteria: "{{ lookup('file', 'criteria/signal-criteria.json') | from_json }}"
+    engine: ansible.utils.jsonschema
+  run_once: yes
+  delegate_to: localhost
+
+- name: "HTH | Signal | Gather package facts"
+  ansible.builtin.package_facts:
+    manager: "auto"
+  when:
+    - signal.gather_facts is not defined or signal.gather_facts
+
+- name: "HTH | Signal | Assure keyrings folder"
+  ansible.builtin.file:
+    path: "/etc/apt/keyrings"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+    modification_time: preserve
+    access_time: preserve
+
+- name: "HTH | Signal | Stat signing key"
+  ansible.builtin.stat:
+    path: "/etc/apt/keyrings/packages.signal.org.gpg"
+  register: signal_signing_key_stat
+
+- block:
+
+  - name: "HTH | Signal | Copy over repository signing key"
+    ansible.builtin.copy:
+      src: "{{ signal.signing.ascii_key_file }}"
+      dest: "/tmp/signal-desktop-signing-key.asc"
+      owner: root
+      group: root
+      mode: 0644
+    when:
+      - not signal_signing_key_stat.stat.exists
+
+  - name: "HTH | Signal | Dearmor repository signing key"
+    ansible.builtin.shell: |
+      gpg --batch --dearmor -o /etc/apt/keyrings/packages.signal.org.gpg /tmp/signal-desktop-signing-key.asc
+    args:
+      creates: "/etc/apt/keyrings/packages.signal.org.gpg"
+    when:
+      - not signal_signing_key_stat.stat.exists
+
+  always:
+    - name: "HTH | Signal | Cleanup temporary files"
+      ansible.builtin.file:
+        path: /tmp/signal-desktop-signing-key.asc
+        state: absent
+
+- name: "HTH | Signal | Add repository"
+  ansible.builtin.deb822_repository:
+    name: signal-desktop
+    types: deb
+    uris: https://updates.signal.org/desktop/apt
+    suites: xenial
+    components: main
+    architectures: amd64
+    signed_by: /etc/apt/keyrings/packages.signal.org.gpg
+    state: "{{ 'present' if(signal.remove is undefined or not signal.remove) else 'absent' }}"
+
+- name: "HTH | Signal | Prioritize repository"
+  ansible.builtin.copy:
+    src: signal-desktop-preferences-d
+    dest: "/etc/apt/preferences.d/signal"
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - signal.remove is undefined or not signal.remove
+
+- name: "HTH | Signal | Remove repository priority"
+  ansible.builtin.file:
+    path: "/etc/apt/preferences.d/signal"
+    state: absent
+  when:
+    - signal.remove is defined and signal.remove
+
+- name: "HTH | Signal | Install package"
+  ansible.builtin.apt:
+    update_cache: yes
+    name: signal-desktop
+    state: "{{ 'latest' if(signal.remove is undefined or not signal.remove) else 'absent' }}"
