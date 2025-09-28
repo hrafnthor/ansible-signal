@@ -1,0 +1,42 @@
+{
+    "title": "signal",
+    "descriptions": "schema for 'signal' installation",
+    "type": "object",
+    "properties":
+    {
+        "remove": {
+            "type": "boolean"
+        },
+        "gather_facts":
+        {
+            "type": "boolean"
+        },
+        "signing":
+        {
+            "type": "object",
+            "properties":
+            {
+                "ascii_key_file":
+                {
+                    "$ref": "#/definitions/non-empty-string"
+                }
+            },
+            "required":
+            [
+                "ascii_key_file"
+            ]
+        },
+        "required":
+        [
+            "signing"
+        ]
+    },
+    "definitions":
+    {
+        "non-empty-string":
+        {
+            "type": "string",
+            "minLength": 1
+        }
+    }
+}

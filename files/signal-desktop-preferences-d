@@ -1,0 +1,8 @@
+Package: signal-desktop
+Pin: origin updates.signal.org
+Pin-Priority: 1000
+
+# Block all other packages
+Package: *
+Pin: origin updates.signal.org
+Pin-Priority: -1
